@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Whale Town</title>
+<style>
+:root{
+  --ink:#17232b; --paper:#efe2bf; --paper2:#fff7dd; --line:#9e8453;
+  --hud:#142630; --hud2:#1e3a48; --sea:#24617a; --accent:#e1b458;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#0e1c25;color:white;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{padding:10px}
+.game-wrap{max-width:1180px;margin:0 auto}
+.topbar{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:8px}
+h1{font:700 clamp(24px,4vw,38px) Georgia,serif;margin:0}
+.subtitle{font-size:12px;color:#9db3bd;margin-top:3px}
+button{font:inherit}
+.reset{border:1px solid #547181;background:#17303c;color:#f6fbfd;padding:9px 12px;border-radius:8px;cursor:pointer}
+.hud{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:7px}
+.hud>div{background:var(--hud);border:1px solid #315161;border-radius:7px;padding:7px 9px}
+.k{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#9fb3bc}
+.v{font-size:18px;font-weight:800;margin-top:2px}
+.stage{position:relative;border:3px solid #284858;background:#102c39;overflow:hidden;box-shadow:0 14px 34px rgba(0,0,0,.28)}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated;background:#82bfd0;outline:none}
+.news{
+ position:absolute;top:9px;left:9px;z-index:3;width:min(410px,72%);
+ background:rgba(255,247,221,.95);color:var(--ink);border:2px solid #9e8453;padding:7px 9px;
+ box-shadow:4px 4px 0 rgba(25,34,39,.28)
+}
+.news .paper{font:700 9px Georgia,serif;letter-spacing:.12em;color:#79613a}
+.news .headline{font:800 14px Georgia,serif;margin-top:1px}
+.news .sub{font-size:10px;color:#625842;margin-top:2px}
+.prompt{
+ position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:4;
+ padding:7px 11px;background:rgba(11,27,35,.88);border:1px solid rgba(255,255,255,.26);
+ border-radius:6px;font-size:12px;max-width:88%;text-align:center;white-space:normal
+}
+.hotbar{
+ display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin-top:7px
+}
+.slot{background:#132b37;border:2px solid #365565;min-height:55px;padding:6px;text-align:center}
+.slot .icon{font-size:19px}.slot .name{font-size:9px;color:#a9bac2}.slot .count{font-size:13px;font-weight:800}
+.help{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px;font-size:11px;color:#a9bbc4}
+.help span{background:#142a35;border:1px solid #294a59;padding:5px 7px;border-radius:5px}
+.mobile{display:none;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:7px}
+.mobile button{min-height:44px;border:1px solid #49697a;background:#17323f;color:white;border-radius:6px;font-weight:800}
+.modalBack{position:fixed;inset:0;background:rgba(4,10,14,.74);display:none;align-items:center;justify-content:center;z-index:30;padding:14px}
+.modalBack.show{display:flex}
+.modal{width:min(620px,100%);background:var(--paper);color:var(--ink);border:4px solid #7b653d;box-shadow:8px 8px 0 rgba(0,0,0,.3);padding:15px}
+.modal h2{font:800 25px Georgia,serif;margin:0 0 5px}
+.modal p{font-size:12px;color:#5f563f;line-height:1.45;margin:5px 0 10px}
+.options{display:grid;gap:7px}
+.opt{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;text-align:left;border:2px solid #ad9360;background:var(--paper2);padding:9px;cursor:pointer;color:var(--ink)}
+.opt:disabled{opacity:.45;cursor:not-allowed}
+.opt b{display:block}.opt small{display:block;color:#71664d;margin-top:2px}
+.close{margin-top:10px;border:2px solid #7b653d;background:#fff7dd;color:var(--ink);padding:8px 11px;cursor:pointer}
+.endStat{font-size:27px;font-weight:900;margin:7px 0}
+@media(max-width:780px){
+  body{padding:5px}.hud{grid-template-columns:repeat(3,1fr)}.hud>div:nth-child(4),.hud>div:nth-child(5){grid-column:auto}
+  .mobile{display:grid}.help{display:none}.hotbar{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="game-wrap">
+  <div class="topbar">
+    <div>
+      <h1>Whale Town</h1>
+      <div class="subtitle">A side-view sandbox prototype. Explore, hunt, trade, and watch the port change.</div>
+    </div>
+    <button class="reset" id="restart">Restart</button>
+  </div>
+
+  <div class="hud">
+    <div><div class="k">Year</div><div class="v" id="year">1850</div></div>
+    <div><div class="k">Cash</div><div class="v" id="cash">$25</div></div>
+    <div><div class="k">Whales</div><div class="v" id="whales">100%</div></div>
+    <div><div class="k">Hold</div><div class="v" id="hold">0 / 3</div></div>
+    <div><div class="k">Place</div><div class="v" id="place">New Bedford</div></div>
+  </div>
+
+  <div class="stage">
+    <div class="news">
+      <div class="paper">NEW BEDFORD COURIER</div>
+      <div class="headline" id="headline">LAMP MAKERS SEEK WHALE OIL</div>
+      <div class="sub" id="subhead">Merchants are paying well for fresh barrels.</div>
+    </div>
+    <canvas id="game" width="960" height="540" tabindex="0" aria-label="Side-view port town game"></canvas>
+    <div class="prompt" id="prompt">A/D to move · Space to jump · E to interact</div>
+  </div>
+
+  <div class="hotbar">
+    <div class="slot"><div class="icon">🛢️</div><div class="name">Whale oil</div><div class="count" id="whaleInv">0</div></div>
+    <div class="slot"><div class="icon">🏮</div><div class="name">Kerosene</div><div class="count" id="kerInv">0</div></div>
+    <div class="slot"><div class="icon">🌻</div><div class="name">Vegetable oil</div><div class="count" id="vegInv">0</div></div>
+    <div class="slot"><div class="icon">🪵</div><div class="name">Timber</div><div class="count" id="woodInv">0</div></div>
+    <div class="slot"><div class="icon">⚙️</div><div class="name">Scrap</div><div class="count" id="scrapInv">0</div></div>
+    <div class="slot"><div class="icon">🚢</div><div class="name">Ship</div><div class="count" id="shipLevel">Lv. 1</div></div>
+  </div>
+
+  <div class="help">
+    <span>A / D or ← / →: move</span>
+    <span>Space: jump in town / fire harpoon at sea</span>
+    <span>E: interact</span>
+    <span>Board the ship at the dock to hunt offshore</span>
+  </div>
+
+  <div class="mobile">
+    <button data-key="left">←</button>
+    <button data-key="right">→</button>
+    <button id="jumpBtn">Jump / Fire</button>
+    <button id="interactBtn">Interact</button>
+    <button id="pauseBtn">Pause</button>
+  </div>
+</div>
+
+<div class="modalBack" id="shopModal">
+  <div class="modal">
+    <h2 id="shopTitle"></h2>
+    <p id="shopText"></p>
+    <div class="options" id="shopOptions"></div>
+    <button class="close" id="shopClose">Back</button>
+  </div>
+</div>
+
+<div class="modalBack" id="endModal">
+  <div class="modal">
+    <div class="k" style="color:#765f37">FINAL LEDGER</div>
+    <h2>The season is over</h2>
+    <div class="endStat" id="endStat"></div>
+    <p id="endDetail"></p>
+    <p id="endExplain"></p>
+    <button class="close" id="playAgain">Play again</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root=document.body, canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
+  const $=id=>document.getElementById(id);
+  const W=canvas.width,H=canvas.height;
+  const keys={left:false,right:false};
+  let state,raf=0,last=0,paused=false;
+
+  const years=[1850,1853,1856,1859,1862,1865,1868,1871,1874,1877,1880,1883];
+  const townWidth=3300, groundY=445;
+
+  const buildings=[
+    {id:'shipyard',x:140,w:220,h:150,name:'Shipyard',kind:'shipyard'},
+    {id:'dock',x:430,w:170,h:110,name:'Whaling Dock',kind:'dock'},
+    {id:'lamp',x:790,w:210,h:165,name:'Lamp Merchant',kind:'buyer'},
+    {id:'machine',x:1160,w:240,h:180,name:'Machine Works',kind:'buyer'},
+    {id:'food',x:1700,w:240,h:170,name:'Food Works',kind:'buyer'},
+    {id:'soap',x:2140,w:230,h:160,name:'Soap Works',kind:'buyer'},
+    {id:'oil',x:2650,w:220,h:160,name:'Oil Depot',kind:'source'},
+    {id:'veg',x:3000,w:220,h:160,name:'Import Warehouse',kind:'source'}
+  ];
+
+  function fresh(){
+    return {
+      zone:'town',season:1,cash:25,whales:100,
+      player:{x:330,y:groundY-46,vx:0,vy:0,w:26,h:46,onGround:true,facing:1},
+      cameraX:0,
+      inv:{whale:0,kerosene:0,vegetable:0,wood:0,scrap:0},
+      holdMax:3,shipLevel:1,shipSpeed:210,harpoonCooldown:0,
+      flags:{oil:false,steam:false,solid:false,veg:false,limits:false},
+      prices:{lamp:{whale:18,kerosene:0,vegetable:0},machine:{whale:17,kerosene:0,vegetable:0},food:{whale:0,kerosene:0,vegetable:0},soap:{whale:16,kerosene:0,vegetable:0}},
+      costs:{kerosene:6,vegetable:5},
+      sold:{whale:0,kerosene:0,vegetable:0},
+      soldFoodWhale:0,
+      near:null,
+      crates:[],
+      particles:[],
+      ocean:{boatX:180,whales:[],harpoons:[],waves:0},
+      message:'Walk to the dock and press E to board your ship.',
+      ended:false
+    };
+  }
+
+  function seedCrates(){
+    state.crates=[
+      {x:675,y:groundY-28,type:'wood',taken:false},
+      {x:1040,y:groundY-28,type:'scrap',taken:false},
+      {x:1480,y:groundY-28,type:'wood',taken:false},
+      {x:1980,y:groundY-28,type:'scrap',taken:false},
+      {x:2440,y:groundY-28,type:'wood',taken:false}
+    ];
+  }
+
+  function seedOcean(){
+    state.ocean.whales=[];
+    for(let i=0;i<7;i++){
+      state.ocean.whales.push({
+        x:300+i*130+Math.random()*70,
+        y:270+Math.random()*175,
+        vx:(Math.random()<.5?-1:1)*(30+Math.random()*35),
+        phase:Math.random()*6.28,
+        alive:true
+      });
+    }
+    state.ocean.harpoons=[];
+  }
+
+  function news(h,s){$('headline').textContent=h;$('subhead').textContent=s}
+  function currentHold(){return state.inv.whale+state.inv.kerosene+state.inv.vegetable}
+
+  function updateUI(){
+    $('year').textContent=years[Math.min(state.season-1,years.length-1)];
+    $('cash').textContent='$'+state.cash;
+    $('whales').textContent=Math.round(state.whales)+'%';
+    $('hold').textContent=currentHold()+' / '+state.holdMax;
+    $('place').textContent=state.zone==='town'?'New Bedford':'Offshore';
+    $('whaleInv').textContent=state.inv.whale;
+    $('kerInv').textContent=state.inv.kerosene;
+    $('vegInv').textContent=state.inv.vegetable;
+    $('woodInv').textContent=state.inv.wood;
+    $('scrapInv').textContent=state.inv.scrap;
+    $('shipLevel').textContent='Lv. '+state.shipLevel;
+    $('prompt').textContent=state.near?state.near.prompt:state.message;
+  }
+
+  function seasonEvent(){
+    const s=state.season;
+    if(s===3&&!state.flags.oil){
+      state.flags.oil=true;
+      state.prices.lamp.kerosene=17;
+      state.prices.machine.kerosene=14;
+      state.prices.lamp.whale=14;
+      news('NEW PENNSYLVANIA OIL WELLS OPEN','Kerosene barrels begin arriving at the new depot.');
+    }else if(s===5&&!state.flags.steam){
+      state.flags.steam=true;
+      state.shipSpeed+=35;
+      news('STEAM FLEETS TAKE TO THE OCEAN','Whaling crews return faster and with larger catches.');
+    }else if(s===7&&!state.flags.solid){
+      state.flags.solid=true;
+      state.prices.food.whale=28;
+      news('NEW PROCESS SOLIDIFIES WHALE OIL','The food works opens a new buying window.');
+    }else if(s===9&&!state.flags.veg){
+      state.flags.veg=true;
+      state.prices.food.vegetable=23;
+      state.prices.soap.vegetable=19;
+      state.prices.food.whale=21;
+      news('VEGETABLE OIL IMPORTS SURGE','A new warehouse opens near the east edge of town.');
+    }else if(s===11&&!state.flags.limits){
+      state.flags.limits=true;
+      news('NEW CATCH LIMITS ANNOUNCED','Whaling crews are returning with smaller loads.');
+    }else{
+      const filler=[
+        ['BUSY WEEK ALONG THE WATERFRONT','Merchants revise their posted prices.'],
+        ['FACTORIES CALL FOR FRESH CARGO','Workers crowd the docks as new orders arrive.'],
+        ['ATLANTIC TRAFFIC BUILDS','Ships move in and out of New Bedford harbor.']
+      ][s%3];
+      news(filler[0],filler[1]);
+    }
+    varyPrices();
+    seedCrates();
+  }
+
+  function varyPrices(){
+    ['lamp','machine','food','soap'].forEach(id=>{
+      ['whale','kerosene','vegetable'].forEach(t=>{
+        if(state.prices[id][t]>0){
+          const n=((state.season+id.length+t.length)%3)-1;
+          state.prices[id][t]=Math.max(8,state.prices[id][t]+n);
+        }
+      });
+    });
+  }
+
+  function nextSeason(){
+    if(state.season>=12){finishGame();return;}
+    state.season++;
+    seasonEvent();
+  }
+
+  function townUpdate(dt){
+    const p=state.player;
+    const move=(keys.right?1:0)-(keys.left?1:0);
+    p.vx=move*185;
+    if(move)p.facing=move;
+    p.vy+=900*dt;
+    p.x+=p.vx*dt;
+    p.y+=p.vy*dt;
+    if(p.y+p.h>=groundY){p.y=groundY-p.h;p.vy=0;p.onGround=true}else p.onGround=false;
+    p.x=Math.max(20,Math.min(townWidth-40,p.x));
+
+    state.cameraX=Math.max(0,Math.min(townWidth-W,p.x-W*.43));
+
+    state.near=null;
+    for(const b of buildings){
+      if(Math.abs((p.x+p.w/2)-(b.x+b.w/2))<b.w*.55+48){
+        if(b.id==='food'&&!state.flags.solid) continue;
+        if(b.id==='oil'&&!state.flags.oil) continue;
+        if(b.id==='veg'&&!state.flags.veg) continue;
+        state.near={type:'building',obj:b,prompt:'E: '+interactionLabel(b)};
+        break;
+      }
+    }
+    if(!state.near){
+      for(const c of state.crates){
+        if(!c.taken&&Math.abs((p.x+p.w/2)-c.x)<42){
+          state.near={type:'crate',obj:c,prompt:'E: collect '+(c.type==='wood'?'timber':'scrap')};
+          break;
+        }
+      }
+    }
+  }
+
+  function interactionLabel(b){
+    if(b.id==='dock')return 'board the whaling ship';
+    if(b.id==='shipyard')return 'enter the shipyard';
+    if(b.kind==='buyer')return 'trade at '+b.name;
+    if(b.id==='oil')return 'buy kerosene';
+    if(b.id==='veg')return 'buy vegetable oil';
+    return 'interact';
+  }
+
+  function jumpOrFire(){
+    if(paused||state.ended)return;
+    if(state.zone==='town'){
+      if(state.player.onGround){state.player.vy=-420;state.player.onGround=false}
+    }else{
+      fireHarpoon();
+    }
+  }
+
+  function interact(){
+    if(paused||state.ended)return;
+    if(state.zone==='ocean'){
+      if(state.ocean.boatX<95){
+        returnToTown();
+      }
+      return;
+    }
+    if(!state.near)return;
+    if(state.near.type==='crate'){
+      const c=state.near.obj;c.taken=true;state.inv[c.type]++;
+      state.message='Collected '+(c.type==='wood'?'timber.':'scrap.');
+      burst(c.x-state.cameraX,c.y,c.type==='wood'?'#d4a261':'#a8b5bd');
+      updateUI();
+      return;
+    }
+    openBuilding(state.near.obj);
+  }
+
+  function openBuilding(b){
+    if(b.id==='dock'){enterOcean();return}
+    paused=true;
+    $('shopTitle').textContent=b.name;
+    const opts=$('shopOptions');opts.innerHTML='';
+    if(b.id==='shipyard'){
+      $('shopText').textContent='Use cash and materials to improve the ship.';
+      addOption(opts,'Bigger hold','+2 cargo spaces','$22 + 2 timber',state.cash>=22&&state.inv.wood>=2,()=>{
+        state.cash-=22;state.inv.wood-=2;state.holdMax+=2;state.shipLevel++;closeShop();updateUI();
+      });
+      addOption(opts,'Faster hull','Move faster offshore','$26 + 2 scrap',state.cash>=26&&state.inv.scrap>=2,()=>{
+        state.cash-=26;state.inv.scrap-=2;state.shipSpeed+=45;state.shipLevel++;closeShop();updateUI();
+      });
+      addOption(opts,'Harpoon winch','Harpoons reload faster','$30 + 1 timber + 1 scrap',state.cash>=30&&state.inv.wood>=1&&state.inv.scrap>=1,()=>{
+        state.cash-=30;state.inv.wood--;state.inv.scrap--;state.harpoonCooldown=Math.min(state.harpoonCooldown,0);state.shipLevel++;state.flags.winch=true;closeShop();updateUI();
+      });
+    }else if(b.kind==='buyer'){
+      const accepted=state.prices[b.id];
+      const lines=[];
+      Object.keys(accepted).forEach(type=>{
+        if(accepted[type]>0&&state.inv[type]>0){
+          lines.push(cargoName(type)+' $'+accepted[type]+' each');
+          addOption(opts,'Sell '+cargoName(type),'You have '+state.inv[type],'$'+accepted[type]+' each',true,()=>{
+            const n=state.inv[type];state.cash+=n*accepted[type];state.sold[type]+=n;
+            if(b.id==='food'&&type==='whale')state.soldFoodWhale+=n;
+            state.inv[type]=0;closeShop();nextSeason();updateUI();
+          });
+        }
+      });
+      $('shopText').textContent=lines.length?'Posted prices: '+lines.join(' · '):'They are not buying anything in your hold right now.';
+      if(!lines.length)addOption(opts,'No sale available','Try another buyer or bring different cargo','—',false,()=>{});
+    }else if(b.id==='oil'){
+      $('shopText').textContent='Pennsylvania barrels are stacked beside the rail siding.';
+      addOption(opts,'Load kerosene','Adds 1 barrel to your hold','$'+state.costs.kerosene,state.cash>=state.costs.kerosene&&currentHold()<state.holdMax,()=>{
+        state.cash-=state.costs.kerosene;state.inv.kerosene++;closeShop();updateUI();
+      });
+    }else if(b.id==='veg'){
+      $('shopText').textContent='Fresh vegetable oil has arrived from overseas.';
+      addOption(opts,'Load vegetable oil','Adds 1 barrel to your hold','$'+state.costs.vegetable,state.cash>=state.costs.vegetable&&currentHold()<state.holdMax,()=>{
+        state.cash-=state.costs.vegetable;state.inv.vegetable++;closeShop();updateUI();
+      });
+    }
+    $('shopModal').classList.add('show');
+  }
+
+  function cargoName(t){return t==='whale'?'whale oil':t==='kerosene'?'kerosene':'vegetable oil'}
+
+  function addOption(host,title,desc,cost,enabled,fn){
+    const b=document.createElement('button');b.className='opt';b.disabled=!enabled;
+    b.innerHTML='<span><b>'+title+'</b><small>'+desc+'</small></span><strong>'+cost+'</strong>';
+    b.addEventListener('click',fn);host.appendChild(b);
+  }
+
+  function closeShop(){$('shopModal').classList.remove('show');paused=false}
+  $('shopClose').addEventListener('click',closeShop);
+
+  function enterOcean(){
+    state.zone='ocean';state.near=null;seedOcean();state.ocean.boatX=150;state.message='A/D to steer · Space to fire downward · return to the left buoy and press E';
+    state.cameraX=0;
+  }
+
+  function returnToTown(){
+    state.zone='town';state.player.x=500;state.player.y=groundY-state.player.h;state.player.vx=0;state.player.vy=0;
+    state.message='Back in New Bedford. Find a buyer or head out again.';
+  }
+
+  function oceanUpdate(dt){
+    const o=state.ocean;
+    const move=(keys.right?1:0)-(keys.left?1:0);
+    o.boatX+=move*state.shipSpeed*dt;
+    o.boatX=Math.max(60,Math.min(W-55,o.boatX));
+    state.harpoonCooldown=Math.max(0,state.harpoonCooldown-dt);
+    o.waves+=dt;
+
+    for(const w of o.whales){
+      if(!w.alive)continue;
+      w.x+=w.vx*dt;
+      if(w.x<80||w.x>W-70)w.vx*=-1;
+      w.y+=Math.sin(o.waves*1.6+w.phase)*7*dt;
+    }
+    for(const h of o.harpoons){
+      h.y+=420*dt;
+      for(const w of o.whales){
+        if(!w.alive||h.hit)continue;
+        if(Math.abs(h.x-w.x)<24&&Math.abs(h.y-w.y)<18){
+          h.hit=true;w.alive=false;
+          const yieldCount=state.flags.steam?2:1;
+          const space=state.holdMax-currentHold();
+          const got=Math.max(0,Math.min(yieldCount,space));
+          state.inv.whale+=got;
+          const loss=state.flags.limits?3:(state.flags.steam?7:5);
+          state.whales=Math.max(0,state.whales-loss);
+          state.message=got?'Whale oil loaded: '+got+' barrel'+(got>1?'s':'')+'.':'Your hold is full.';
+          burst(w.x,w.y,'#d7edf2');
+        }
+      }
+    }
+    o.harpoons=o.harpoons.filter(h=>h.y<H+20&&!h.hit);
+
+    const nearBuoy=o.boatX<95;
+    state.near=nearBuoy?{type:'buoy',prompt:'E: return to New Bedford'}:null;
+  }
+
+  function fireHarpoon(){
+    if(state.zone!=='ocean'||state.harpoonCooldown>0||currentHold()>=state.holdMax)return;
+    state.ocean.harpoons.push({x:state.ocean.boatX,y:170,hit:false});
+    state.harpoonCooldown=state.flags.winch?0.35:0.7;
+  }
+
+  function updateParticles(dt){
+    for(const p of state.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;p.vy+=90*dt}
+    state.particles=state.particles.filter(p=>p.life>0);
+  }
+  function burst(x,y,color){
+    for(let i=0;i<8;i++)state.particles.push({x,y,vx:(Math.random()-.5)*110,vy:-30-Math.random()*90,life:.7,color});
+  }
+
+  function update(dt){
+    if(paused||state.ended)return;
+    if(state.zone==='town')townUpdate(dt);else oceanUpdate(dt);
+    updateParticles(dt);updateUI();
+  }
+
+  function drawTown(){
+    const cam=state.cameraX;
+    const sky=ctx.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#8fc8d6');sky.addColorStop(1,'#d8e5d5');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+
+    ctx.fillStyle='rgba(255,255,255,.75)';
+    for(let i=0;i<8;i++){const x=((i*250-cam*.18)%1200+1200)%1200-100;ctx.fillRect(x,70+(i%3)*24,90,14)}
+
+    ctx.fillStyle='#657a58';ctx.fillRect(0,groundY-75,W,75);
+    ctx.fillStyle='#846f4b';ctx.fillRect(0,groundY,W,H-groundY);
+    ctx.fillStyle='#a58d5d';
+    for(let x=-cam%40;x<W;x+=40)ctx.fillRect(x,groundY+20,22,5);
+
+    for(const b of buildings)drawBuilding(b,cam);
+    for(const c of state.crates)if(!c.taken)drawCrate(c,cam);
+
+    const p=state.player;
+    drawPerson(p.x-cam,p.y,p.facing);
+
+    for(const part of state.particles){
+      ctx.fillStyle=part.color;ctx.fillRect(Math.round(part.x-cam),Math.round(part.y),4,4);
+    }
+
+    ctx.fillStyle='rgba(18,32,39,.7)';ctx.font='700 11px monospace';ctx.textAlign='left';
+    ctx.fillText('WEST: SHIPYARD / DOCK',16,H-15);
+    ctx.textAlign='right';ctx.fillText('EAST: FACTORIES / DEPOTS',W-16,H-15);
+  }
+
+  function drawBuilding(b,cam){
+    const x=b.x-cam;if(x+b.w<-20||x>W+20)return;
+    const locked=(b.id==='food'&&!state.flags.solid)||(b.id==='oil'&&!state.flags.oil)||(b.id==='veg'&&!state.flags.veg);
+    ctx.fillStyle=locked?'#77756d':b.id==='dock'?'#83684b':'#c69d63';
+    ctx.fillRect(x,groundY-b.h,b.w,b.h);
+    ctx.fillStyle=locked?'#5f5d57':'#845d39';ctx.fillRect(x-8,groundY-b.h-18,b.w+16,20);
+    ctx.fillStyle='#4a3828';ctx.fillRect(x+b.w*.42,groundY-58,38,58);
+    ctx.fillStyle=locked?'#8c8980':'#dce9e2';
+    ctx.fillRect(x+24,groundY-b.h+42,42,34);ctx.fillRect(x+b.w-66,groundY-b.h+42,42,34);
+    ctx.fillStyle='#f4ead0';ctx.fillRect(x+15,groundY-b.h-5,b.w-30,23);
+    ctx.fillStyle='#2f2b26';ctx.font='700 12px monospace';ctx.textAlign='center';
+    ctx.fillText(locked?'COMING SOON':b.name,x+b.w/2,groundY-b.h+11);
+    if(b.id==='dock'){
+      ctx.fillStyle='#5b4a35';ctx.fillRect(x+b.w-20,groundY-10,210,10);
+      ctx.fillStyle='#2f5362';ctx.fillRect(x+b.w+10,groundY+0,180,H-groundY);
+    }
+  }
+
+  function drawCrate(c,cam){
+    const x=c.x-cam;ctx.fillStyle=c.type==='wood'?'#9b6b3f':'#66767d';ctx.fillRect(x-14,c.y-18,28,18);
+    ctx.strokeStyle='#3a3027';ctx.strokeRect(x-14,c.y-18,28,18);
+    ctx.beginPath();ctx.moveTo(x-12,c.y-16);ctx.lineTo(x+12,c.y-2);ctx.moveTo(x+12,c.y-16);ctx.lineTo(x-12,c.y-2);ctx.stroke();
+  }
+
+  function drawPerson(x,y,facing){
+    ctx.save();ctx.translate(Math.round(x),Math.round(y));
+    ctx.fillStyle='#3a2c23';ctx.fillRect(7,0,12,12);
+    ctx.fillStyle='#d7b18b';ctx.fillRect(8,9,10,10);
+    ctx.fillStyle='#284e68';ctx.fillRect(4,19,18,17);
+    ctx.fillStyle='#4a3527';ctx.fillRect(5,36,6,10);ctx.fillRect(15,36,6,10);
+    ctx.fillStyle='#efefdd';ctx.fillRect(facing>0?19:2,23,5,4);
+    ctx.restore();
+  }
+
+  function drawOcean(){
+    const sky=ctx.createLinearGradient(0,0,0,220);sky.addColorStop(0,'#88c4d5');sky.addColorStop(1,'#d7e5dc');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,W,220);
+    const sea=ctx.createLinearGradient(0,160,0,H);sea.addColorStop(0,'#2f7891');sea.addColorStop(1,'#133f55');
+    ctx.fillStyle=sea;ctx.fillRect(0,160,W,H-160);
+
+    ctx.strokeStyle='rgba(255,255,255,.25)';
+    for(let y=180;y<H;y+=38){
+      ctx.beginPath();
+      for(let x=0;x<W;x+=24){
+        const yy=y+Math.sin((x*.035)+(state.ocean.waves*3)+y)*4;
+        if(x===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+
+    ctx.fillStyle='#e9d16e';ctx.fillRect(38,125,8,60);ctx.fillStyle='#e04f40';ctx.fillRect(34,120,16,12);
+    ctx.fillStyle='rgba(255,255,255,.85)';ctx.font='700 10px monospace';ctx.textAlign='left';ctx.fillText('HOME',20,112);
+
+    for(const w of state.ocean.whales)if(w.alive){
+      ctx.save();ctx.translate(w.x,w.y);if(w.vx<0)ctx.scale(-1,1);
+      ctx.fillStyle='#8fb5c2';ctx.fillRect(-22,-7,36,14);ctx.fillRect(12,-4,14,8);
+      ctx.beginPath();ctx.moveTo(24,0);ctx.lineTo(34,-10);ctx.lineTo(34,10);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#1c3742';ctx.fillRect(-14,-3,3,3);ctx.restore();
+    }
+
+    const bx=state.ocean.boatX;
+    ctx.fillStyle='#6e4a30';ctx.beginPath();ctx.moveTo(bx-30,165);ctx.lineTo(bx+30,165);ctx.lineTo(bx+18,183);ctx.lineTo(bx-20,183);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#e5ddc8';ctx.fillRect(bx-2,115,4,50);ctx.beginPath();ctx.moveTo(bx+2,120);ctx.lineTo(bx+30,145);ctx.lineTo(bx+2,150);ctx.closePath();ctx.fill();
+
+    ctx.strokeStyle='#d7dde0';ctx.lineWidth=2;
+    for(const h of state.ocean.harpoons){ctx.beginPath();ctx.moveTo(h.x,160);ctx.lineTo(h.x,h.y);ctx.stroke();ctx.fillStyle='#d8d0b5';ctx.fillRect(h.x-2,h.y-7,4,12)}
+
+    for(const part of state.particles){ctx.fillStyle=part.color;ctx.fillRect(part.x,part.y,4,4)}
+
+    ctx.fillStyle='rgba(8,23,31,.72)';ctx.fillRect(12,H-54,300,35);
+    ctx.fillStyle='#e6f1f4';ctx.font='700 11px monospace';ctx.textAlign='left';
+    ctx.fillText('A/D steer · SPACE fire harpoon',22,H-33);
+    ctx.fillText('Return to left buoy + E to dock',22,H-20);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    if(state.zone==='town')drawTown();else drawOcean();
+  }
+
+  function loop(ts){
+    if(!last)last=ts;
+    const dt=Math.min(.033,(ts-last)/1000);last=ts;
+    update(dt);draw();
+    raf=requestAnimationFrame(loop);
+  }
+
+  function finishGame(){
+    state.ended=true;paused=true;
+    $('endStat').textContent='$'+state.cash+' · '+Math.round(state.whales)+'% whales remaining';
+    $('endDetail').textContent='You sold '+state.sold.whale+' whale-oil barrel'+(state.sold.whale===1?'':'s')+', '+state.sold.kerosene+' kerosene, and '+state.sold.vegetable+' vegetable oil.';
+    const bits=[];
+    if(state.sold.kerosene>0)bits.push('you started hauling kerosene after the Pennsylvania depot opened');
+    if(state.soldFoodWhale>0)bits.push('you brought whale oil back to the food works when it became valuable there');
+    if(state.sold.vegetable>0)bits.push('you shifted some cargo to vegetable oil once the import warehouse opened');
+    if(!bits.length&&state.sold.whale>0)bits.push('you stayed focused on whale oil through most of the game');
+    if(!bits.length)bits.push('you explored the changing port without committing heavily to one cargo');
+    $('endExplain').textContent='During your round, '+bits.join(', and ')+'. The routes and cargoes that paid best changed as the town gained new industries and uses, while the whale population finished at '+Math.round(state.whales)+'%.';
+    $('endModal').classList.add('show');
+  }
+
+  function keyMove(code,val){
+    if(code==='KeyA'||code==='ArrowLeft')keys.left=val;
+    if(code==='KeyD'||code==='ArrowRight')keys.right=val;
+  }
+  window.addEventListener('keydown',e=>{
+    if(['KeyA','KeyD','ArrowLeft','ArrowRight','Space','KeyE'].includes(e.code))e.preventDefault();
+    keyMove(e.code,true);
+    if(e.code==='Space'&&!e.repeat)jumpOrFire();
+    if(e.code==='KeyE'&&!e.repeat)interact();
+  });
+  window.addEventListener('keyup',e=>keyMove(e.code,false));
+
+  document.querySelectorAll('[data-key]').forEach(b=>{
+    const k=b.dataset.key;
+    b.addEventListener('pointerdown',e=>{e.preventDefault();keys[k]=true});
+    ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[k]=false}));
+  });
+  $('jumpBtn').addEventListener('click',jumpOrFire);
+  $('interactBtn').addEventListener('click',interact);
+  $('pauseBtn').addEventListener('click',()=>{paused=!paused;$('pauseBtn').textContent=paused?'Resume':'Pause'});
+  $('restart').addEventListener('click',restart);
+  $('playAgain').addEventListener('click',restart);
+
+  function restart(){
+    state=fresh();seedCrates();seedOcean();paused=false;last=0;
+    $('shopModal').classList.remove('show');$('endModal').classList.remove('show');
+    news('LAMP MAKERS SEEK WHALE OIL','Merchants are paying well for fresh barrels.');
+    updateUI();canvas.focus();
+  }
+
+  restart();
+  raf=requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
